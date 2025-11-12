@@ -10,8 +10,8 @@ html,body {
 
 #map {
   position: relative;
-  width: 100%; /* Adjust width to your desired size */
-  height: 100vh; /* Adjust height to your desired size */
+  width: 90%; /* Adjust width to your desired size */
+  height: 800px; /* Adjust height to your desired size */
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Optional: subtle shadow for effect */
   border-radius: 8px; /* Optional: rounded corners */
 }
@@ -32,9 +32,9 @@ html,body {
 }
 
 #map svg circle{
-  fill: crimson;
+  fill: Navy;
   fill-opacity: 1;
-  stroke: white;
+  stroke: Gray;
   stroke-width: 1.3;
   pointer-events: auto;
 }

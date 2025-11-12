@@ -136,9 +136,9 @@ stations = stations.map((station) => {
     .data(stations)
     .enter()
     .append('circle')
-    .attr('fill', 'Crimson') // Circle fill color
+    .attr('fill', 'Navy') // Circle fill color
     .attr('stroke', 'white') // Circle border color
-    .attr('stroke-width', 1) // Circle border thickness
+    .attr('stroke-width', 1.5) // Circle border thickness
     .attr('r', (d) => radiusScale(d.totalTraffic)) // Radius from 7.4.3
     .attr('opacity', 0.8) // Circle opacity
     
@@ -148,7 +148,7 @@ stations = stations.map((station) => {
         .transition()
         .duration(150)
         .attr('fill', 'Crimson')
-        .attr('r', radiusScale(d.totalTraffic) * 1.4);
+        .attr('r', radiusScale(d.totalTraffic) * 1.7);
       
       tooltip
         .style('opacity', 0.8)
