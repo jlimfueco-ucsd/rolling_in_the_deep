@@ -56,13 +56,10 @@ map.on('load', async () => {
 
   // 7.3.1 Adding the BlueBikes data ---
   let jsonData;
-
   try {
     const jsonurl = 'https://dsc-courses.github.io/dsc209r-2025-fa/labs/lab07/data/bluebikes-stations.json';
-
     // Await JSON fetch
     jsonData = await d3.json(jsonurl);
-
     console.log('Loaded JSON Data:', jsonData); // Log to verify structure
   } catch (error) {
     console.error('Error loading JSON:', error); // Handle errors
@@ -73,6 +70,65 @@ map.on('load', async () => {
   console.log('Stations Array:', stations);
 
   const svg = d3.select('#map').select('svg');
+  // // BIG, OBVIOUS SHAPES for debug
+  // svg.append('rect')
+  //   .attr('x', 20).attr('y', 20)
+  //   .attr('width', 200).attr('height', 120)
+  //   .attr('fill', 'rgba(0,200,0,0.5)');
+
+  // svg.append('circle')
+  //   .attr('cx', 140).attr('cy', 80).attr('r', 40)
+  //   .attr('fill', 'red').attr('stroke', 'white').attr('stroke-width', 3);
+
+  const tooltip = d3
+    .select('body')
+    .append('div')
+    .style('position', 'absolute')
+    .style('background', 'rgba(0, 0, 0, 0.7)')
+    .style('color', 'white')
+    .style('padding', '4px 8px')
+    .style('border-radius', '4px')
+    .style('font-size', '12px')
+    .style('pointer-events', 'none')
+    .style('opacity', 0.7)
+    .style('z-index', 9999);
+
+  // 7.4.1 parse the traffic data
+  let trips;
+  try {
+    const csvurl = 'https://dsc-courses.github.io/dsc209r-2025-fa/labs/lab07/data/bluebikes-traffic-2024-03.csv';
+    // Await CSV fetch
+    trips = await d3.csv(csvurl);
+    console.log('Loaded CSV Data:', trips); // Log to verify structure
+  } catch (error) {
+    console.error('Error loading CSV:', error); // Handle errors
+  }
+
+const departures = d3.rollup(
+  trips,
+  (v) => v.length,
+  (d) => d.start_station_id,
+);
+
+const arrivals = d3.rollup(
+  trips,
+  (v) => v.length,
+  (d) => d.end_station_id,
+);
+
+stations = stations.map((station) => {
+  let id = station.short_name;
+  station.arrivals = arrivals.get(id) ?? 0;
+  station.departures = departures.get(id) ?? 0;
+  station.totalTraffic = station.arrivals + station.departures
+  return station;
+});
+
+  // 7.4.3
+  const radiusScale = d3
+    .scaleSqrt()
+    .domain([0, d3.max(stations, (d) => d.totalTraffic)])
+    .range([0, 25]);
 
     // Append circles to the SVG for each station
   const circles = svg
@@ -80,12 +136,55 @@ map.on('load', async () => {
     .data(stations)
     .enter()
     .append('circle')
-    .attr('r', 5) // Radius of the circle
-    .attr('fill', 'DarkBlue') // Circle fill color
+    .attr('fill', 'Crimson') // Circle fill color
     .attr('stroke', 'white') // Circle border color
     .attr('stroke-width', 1) // Circle border thickness
-    .attr('opacity', 0.8); // Circle opacity
+    .attr('r', (d) => radiusScale(d.totalTraffic)) // Radius from 7.4.3
+    .attr('opacity', 0.8) // Circle opacity
+    
+    // mouse functions
+    .on('mouseover', function(event, d) {
+      d3.select(this)
+        .transition()
+        .duration(150)
+        .attr('fill', 'Crimson')
+        .attr('r', radiusScale(d.totalTraffic) * 1.4);
+      
+      tooltip
+        .style('opacity', 0.8)
+        .html(
+          `<strong>${d.name}</strong><br>
+          ${d.totalTraffic} - Total Trips<br>
+          ${d.departures} - Departures<br>
+           ${d.arrivals} - Arrivals`
+        );
 
+      d3.select(this).on('mousemove.tooltip', function(event) {
+        tooltip
+          .style('left', event.pageX + 10 + 'px')
+          .style('top', event.pageY - 28 + 'px');        
+      })
+    })
+
+    .on('mouseout', function (event, d) {
+      d3.select(this)
+          .transition()
+          .duration(150)
+          .attr('r', radiusScale(d.totalTraffic));
+      tooltip.style('opacity', 0);
+      d3.select(this).on('mousemove.tooltip', null);
+    });
+
+  
+  // DEBUG THE CIRCLES NOT SHOWING UP
+  // Check that Mapbox GL JS is loaded
+  // console.log('Mapbox GL JS Loaded:', mapboxgl);
+  // const svgEl = d3.select('#map').select('svg').node();
+  // console.log('SVG size:', svgEl.clientWidth, svgEl.clientHeight);
+  // console.log('Circle count:', d3.select('#map svg').selectAll('circle').size());
+  
+
+    
   // 7.3.3 update the circles for the Map
   function updatePositions() {
     circles
@@ -94,24 +193,28 @@ map.on('load', async () => {
   }
 
   // 7.3.3 getCoords global fxn
-function getCoords(station) {
-  const point = new mapboxgl.LngLat(+station.lon, +station.lat); // Convert lon/lat to Mapbox LngLat
-  const { x, y } = map.project(point); // Project to pixel coordinates
-  return { cx: x, cy: y }; // Return as object for use in SVG attributes
-}
+  function getCoords(station) {
+    const point = new mapboxgl.LngLat(+station.lon, +station.lat); // Convert lon/lat to Mapbox LngLat
+    const { x, y } = map.project(point); // Project to pixel coordinates
+    return { cx: x, cy: y }; // Return as object for use in SVG attributes
+  }
 
+    // Initial position update when map loads
+  updatePositions();
 
-// Initial position update when map loads
-updatePositions();
-
-// Reposition markers on map interactions
-map.on('move', updatePositions); // Update during map movement
-map.on('zoom', updatePositions); // Update during zooming
-map.on('resize', updatePositions); // Update on window resize
-map.on('moveend', updatePositions); // Final adjustment after movement ends
+  // Reposition markers on map interactions
+  map.on('move', updatePositions); // Update during map movement
+  map.on('zoom', updatePositions); // Update during zooming
+  map.on('resize', updatePositions); // Update on window resize
+  map.on('moveend', updatePositions); // Final adjustment after movement ends
 
 });
 
 
-// Check that Mapbox GL JS is loaded
-console.log('Mapbox GL JS Loaded:', mapboxgl);
+
+
+// 7.5.2
+const timeSlider = document.getElementById('#time-slider');
+const selectedTime = document.getElementById('#selected-time');
+const anyTimeLabel = document.getElementById('#any-time');
+
