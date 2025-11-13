@@ -6,6 +6,49 @@ import * as d3 from 'https://cdn.jsdelivr.net/npm/d3@7.9.0/+esm';
 // Set your Mapbox access token here
 mapboxgl.accessToken = 'pk.eyJ1IjoianVsaW1mdWVjbyIsImEiOiJjbWh1MjF5d3IwMWZjMmtvbzFjczR1NWIyIn0.GRN9wpPgAm2W3RJT5zEj8w';
 
+function computeStationTraffic(stations, trips) { 
+    const departures = d3.rollup(
+        trips,
+        (v) => v.length,
+        (d) => d.start_station_id,
+    );
+
+    const arrivals = d3.rollup(
+        trips,
+        (v) => v.length,
+        (d) => d.end_station_id,
+    );
+
+    return stations.map((station) => {
+        const id = station.short_name;
+        station.arrivals = arrivals.get(id) ?? 0;
+        station.departures = departures.get(id) ?? 0;
+        station.totalTraffic = station.arrivals + station.departures
+        return station;
+    });
+}
+
+function minutesSinceMidnight(date) {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+function filterTripsbyTime(trips, timeFilter) {
+  return timeFilter === -1
+    ? trips 
+    : trips.filter((trip) => {
+        const startedMinutes = minutesSinceMidnight(trip.started_at);
+        const endedMinutes = minutesSinceMidnight(trip.ended_at);
+        return (
+          Math.abs(startedMinutes - timeFilter) <= 60 ||
+          Math.abs(endedMinutes - timeFilter) <= 60
+        );
+      });
+}
+
+function formatTime(minutes) {
+    const date = new Date(0, 0, 0, 0, minutes); // Set hours & minutes
+    return date.toLocaleString('en-US', { timeStyle: 'short' }); // Format as HH:MM AM/PM
+}
 // Initialize the map
 const map = new mapboxgl.Map({
   container: 'map', // ID of the div where the map will render
@@ -54,22 +97,51 @@ map.on('load', async () => {
     }
   });
 
-  // 7.3.1 Adding the BlueBikes data ---
-  let jsonData;
+
+  // 7.3.1 + 7.4.1 + 7.5.1 – load data and compute traffic
+  let stations;
+  let trips;
+
+  // --- Load stations JSON ---
   try {
-    const jsonurl = 'https://dsc-courses.github.io/dsc209r-2025-fa/labs/lab07/data/bluebikes-stations.json';
-    // Await JSON fetch
-    jsonData = await d3.json(jsonurl);
-    console.log('Loaded JSON Data:', jsonData); // Log to verify structure
+    const jsonurl =
+      'https://dsc-courses.github.io/dsc209r-2025-fa/labs/lab07/data/bluebikes-stations.json';
+    const jsonData = await d3.json(jsonurl);
+    stations = jsonData.data.stations;
+    console.log('Stations Array:', stations);
   } catch (error) {
-    console.error('Error loading JSON:', error); // Handle errors
+    console.error('Error loading JSON:', error);
   }
 
-    // Check the BlueBikes stations array is loaded
-  let stations = jsonData.data.stations;
-  console.log('Stations Array:', stations);
+  // --- Load trips CSV ---
+  try {
+    const csvurl =
+      'https://dsc-courses.github.io/dsc209r-2025-fa/labs/lab07/data/bluebikes-traffic-2024-03.csv';
+    trips = await d3.csv(csvurl, (trip) => {
+      // OPTIONAL now, but handy for 7.5.3:
+      trip.started_at = new Date(trip.started_at);
+      trip.ended_at = new Date(trip.ended_at);
+      return trip;
+    });
+    console.log('Loaded CSV Data:', trips.length);
+  } catch (error) {
+    console.error('Error loading CSV:', error);
+  }
 
-  const svg = d3.select('#map').select('svg');
+  // --- Combine: arrivals / departures / totalTraffic ---
+  stations = computeStationTraffic(stations, trips);
+  console.log('Stations with traffic:', stations);
+
+  // Everything below here can stay as-is, starting with:
+  // const svg = d3.select('#map').select('svg');
+
+  // Check the BlueBikes stations array is loaded
+  // let stations = jsonData.data.stations; removed for 7.5.3
+  // const stations = computeStationTraffic(jsonData.data.stations, trips);
+
+  // console.log('Stations Array:', stations);
+
+  // const svg = d3.select('#map').select('svg');
   // // BIG, OBVIOUS SHAPES for debug
   // svg.append('rect')
   //   .attr('x', 20).attr('y', 20)
@@ -79,6 +151,15 @@ map.on('load', async () => {
   // svg.append('circle')
   //   .attr('cx', 140).attr('cy', 80).attr('r', 40)
   //   .attr('fill', 'red').attr('stroke', 'white').attr('stroke-width', 3);
+
+  const svg = d3
+    .select('#map')
+    .append('svg')
+    .style('position', 'absolute')
+    .style('z-index', 10)
+    .style('width', '100%')
+    .style('height', '100%')
+    .style('pointer-events', 'none');
 
   const tooltip = d3
     .select('body')
@@ -94,15 +175,15 @@ map.on('load', async () => {
     .style('z-index', 9999);
 
   // 7.4.1 parse the traffic data
-  let trips;
-  try {
-    const csvurl = 'https://dsc-courses.github.io/dsc209r-2025-fa/labs/lab07/data/bluebikes-traffic-2024-03.csv';
-    // Await CSV fetch
-    trips = await d3.csv(csvurl);
-    console.log('Loaded CSV Data:', trips); // Log to verify structure
-  } catch (error) {
-    console.error('Error loading CSV:', error); // Handle errors
-  }
+  // let trips;
+  // try {
+  //   const csvurl = 'https://dsc-courses.github.io/dsc209r-2025-fa/labs/lab07/data/bluebikes-traffic-2024-03.csv';
+  //   // Await CSV fetch
+  //   trips = await d3.csv(csvurl);
+  //   console.log('Loaded CSV Data:', trips); // Log to verify structure
+  // } catch (error) {
+  //   console.error('Error loading CSV:', error); // Handle errors
+  // }
 
 const departures = d3.rollup(
   trips,
@@ -133,7 +214,7 @@ stations = stations.map((station) => {
     // Append circles to the SVG for each station
   const circles = svg
     .selectAll('circle')
-    .data(stations)
+    .data(stations, (d) => d.short_name)
     .enter()
     .append('circle')
     .attr('fill', 'Navy') // Circle fill color
@@ -208,13 +289,50 @@ stations = stations.map((station) => {
   map.on('resize', updatePositions); // Update on window resize
   map.on('moveend', updatePositions); // Final adjustment after movement ends
 
+  // -- 7.5.2 THE TIME SLIDER STUFF//
+
+  const timeSlider = document.getElementById('time-slider');
+  const selectedTime = document.getElementById('selected-time');
+  const anyTimeLabel = document.getElementById('any-time');
+
+  function formatTime(minutes) {
+  const date = new Date(0, 0, 0, 0, minutes); // Set hours & minutes
+  return date.toLocaleString('en-US', { timeStyle: 'short' }); // Format as HH:MM AM/PM
+  }
+
+  function updateTimeDisplay() {
+    // Get numeric slider value
+    const timeFilter = Number(timeSlider.value);
+
+    // Case: any time (-1)
+    if (timeFilter === -1) {
+      selectedTime.textContent = '11:59PM'; // bad practice but this is the base time 
+      anyTimeLabel.style.display = 'none'; // Optional if you're removing separate label
+    } 
+    else {
+      // Show formatted time, e.g., "2:38 PM"
+      selectedTime.textContent = formatTime(timeFilter);
+      anyTimeLabel.style.display = 'none';
+    }
+
+    // Update circles based on the chosen time
+    updateScatterPlot(timeFilter);
+  }
+
+  timeSlider.addEventListener('input', updateTimeDisplay);
+  updateTimeDisplay();
+
+  function updateScatterPlot(timeFilter) {
+    const filteredTrips = filterTripsbyTime(trips, timeFilter);
+    const filteredStations = computeStationTraffic(stations, filteredTrips);
+
+    timeFilter === -1 ? radiusScale.range([0, 25]) : radiusScale.range([3, 50]);
+
+    // Update the scatterplot by adjusting the radius of circles
+    circles
+      .data(filteredStations, (d) => d.short_name)
+      .join('circle') // Ensure the data is bound correctly
+      .attr('r', (d) => radiusScale(d.totalTraffic)); // Update circle sizes
+  }
+
 });
-
-
-
-
-// 7.5.2
-const timeSlider = document.getElementById('#time-slider');
-const selectedTime = document.getElementById('#selected-time');
-const anyTimeLabel = document.getElementById('#any-time');
-

@@ -17,6 +17,16 @@
   <h1>🏍️ Rolling in the Deep 🏍️</h1>
   <h2>A Bike watching project in collaboration with UCSD: DSC 209 Data Visualization</h2>
 
+  <header class="time-filter">
+  <label>
+    Filter by time:
+    <input id="time-slider" type="range" min="-1" max="1440" value="-1" step="10" />
+    
+    <time id="selected-time"></time>
+    <em id="any-time">(any time)</em>
+  </label>
+  </header>
+
   <body>
     <div id="map">
       <svg></svg>

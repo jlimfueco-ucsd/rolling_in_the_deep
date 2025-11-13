@@ -9,3 +9,25 @@ body {
   margin: auto;
   padding: 1em;
 }
+
+#time-filter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  font-size: 15px;
+}
+
+#time-filter label {
+  font-weight: 500;
+}
+
+#time-slider {
+  width: 600px;
+}
+
+#selected-time {
+  font-style: italic;
+  white-space: nowrap;
+}
