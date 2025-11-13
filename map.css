@@ -34,7 +34,7 @@ html,body {
 #map svg circle,
 .legend > div {
   --color-departures: rgb(4, 83, 231);
-  --color-arrivals: rgb(212, 152, 1);
+  --color-arrivals: rgb(8, 236, 0);
   --color: color-mix(
     in oklch,
     var(--color-departures) calc(100% * var(--departure-ratio)),
