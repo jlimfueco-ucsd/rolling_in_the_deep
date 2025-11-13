@@ -49,6 +49,9 @@ function formatTime(minutes) {
     const date = new Date(0, 0, 0, 0, minutes); // Set hours & minutes
     return date.toLocaleString('en-US', { timeStyle: 'short' }); // Format as HH:MM AM/PM
 }
+
+
+
 // Initialize the map
 const map = new mapboxgl.Map({
   container: 'map', // ID of the div where the map will render
@@ -211,6 +214,8 @@ stations = stations.map((station) => {
     .domain([0, d3.max(stations, (d) => d.totalTraffic)])
     .range([0, 25]);
 
+
+  const stationFlow = d3.scaleQuantize().domain([0, 1]).range([0, 0.5, 1]);
     // Append circles to the SVG for each station
   const circles = svg
     .selectAll('circle')
@@ -222,6 +227,9 @@ stations = stations.map((station) => {
     .attr('stroke-width', 1.5) // Circle border thickness
     .attr('r', (d) => radiusScale(d.totalTraffic)) // Radius from 7.4.3
     .attr('opacity', 0.8) // Circle opacity
+    .style('--departure-ratio', (d) => {
+    if (!d.totalTraffic) return 0.5; // show “Balanced” for no-traffic stations
+    return stationFlow(d.departures / d.totalTraffic);})
     
     // mouse functions
     .on('mouseover', function(event, d) {
@@ -306,7 +314,7 @@ stations = stations.map((station) => {
 
     // Case: any time (-1)
     if (timeFilter === -1) {
-      selectedTime.textContent = '11:59PM'; // bad practice but this is the base time 
+      selectedTime.textContent = '11:59PM'; // bad practice but this is the way it's in examples 
       anyTimeLabel.style.display = 'none'; // Optional if you're removing separate label
     } 
     else {
@@ -322,17 +330,26 @@ stations = stations.map((station) => {
   timeSlider.addEventListener('input', updateTimeDisplay);
   updateTimeDisplay();
 
-  function updateScatterPlot(timeFilter) {
-    const filteredTrips = filterTripsbyTime(trips, timeFilter);
-    const filteredStations = computeStationTraffic(stations, filteredTrips);
+function updateScatterPlot(timeFilter) {
+  const filteredTrips = filterTripsbyTime(trips, timeFilter);
+  const filteredStations = computeStationTraffic(stations, filteredTrips);
 
-    timeFilter === -1 ? radiusScale.range([0, 25]) : radiusScale.range([3, 50]);
-
-    // Update the scatterplot by adjusting the radius of circles
-    circles
-      .data(filteredStations, (d) => d.short_name)
-      .join('circle') // Ensure the data is bound correctly
-      .attr('r', (d) => radiusScale(d.totalTraffic)); // Update circle sizes
+  if (timeFilter === -1) {
+    radiusScale.range([0, 25]);
+  } else {
+    radiusScale.range([3, 50]);
   }
+
+  circles
+    .data(filteredStations, (d) => d.short_name)
+    .transition()
+    .duration(300)
+    .attr('r', (d) => radiusScale(d.totalTraffic || 0))
+    .style('--departure-ratio', (d) => {
+      if (!d.totalTraffic) return 0.5;      // show “Balanced” if no trips
+      return stationFlow(d.departures / d.totalTraffic);
+    });
+}
+
 
 });
